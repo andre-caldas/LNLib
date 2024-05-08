@@ -156,7 +156,7 @@ namespace LNLib
         series[2] = (function)(start + x, customData);
         series[4] = (function)(end - x, customData);
         series[1] = (function)(start + ba, customData);
-        eref = 0.5 * (fabs(series[0]) + std::fabs(series[1]) + std::fabs(series[2]) + std::fabs(series[3]) + std::fabs(series[4]));
+        eref = 0.5 * (std::fabs(series[0]) + std::fabs(series[1]) + std::fabs(series[2]) + std::fabs(series[3]) + std::fabs(series[4]));
         series[0] += series[3];
         series[2] += series[4];
         ir = series[0] + series[1] + series[2];
@@ -190,7 +190,7 @@ namespace LNLib
         integration *= end - start;
         if (err > erefh || errir > eref)
         {
-            err *= -fabs(end - start);
+            err *= -std::fabs(end - start);
         }
         else
         {
@@ -213,7 +213,7 @@ namespace LNLib
         series[2] = (function)(start + x, customData);
         series[4] = (function)(end - x, customData);
         series[1] = (function)(start + ba, customData);
-        eref = 0.5 * (fabs(series[0]) + std::fabs(series[1]) + std::fabs(series[2]) + std::fabs(series[3]) + std::fabs(series[4]));
+        eref = 0.5 * (std::fabs(series[0]) + std::fabs(series[1]) + std::fabs(series[2]) + std::fabs(series[3]) + std::fabs(series[4]));
         series[0] += series[3];
         series[2] += series[4];
         ir = series[0] + series[1] + series[2];
@@ -247,7 +247,7 @@ namespace LNLib
         integration *= end - start;
         if (err > erefh || errir > eref)
         {
-            err *= -fabs(end - start);
+            err *= -std::fabs(end - start);
         }
         else
         {
