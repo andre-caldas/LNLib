@@ -40,9 +40,14 @@ namespace LNLib
 		/// <summary>
 		/// The NURBS Book 2nd Edition Page127
 		/// Algorithm A4.2
-		/// Compute C(paramT) derivatives from Cw(paramT) deraivatives.
+		/// Compute C(paramT) derivatives from Cw(paramT) derivatives.
 		/// </summary>
 		static std::vector<XYZ> ComputeRationalCurveDerivatives(const LN_NurbsCurve& curve, int derivative, double paramT);
+
+		/// <summary>
+		/// Computer left and right hand derivatives.
+		/// </summary>
+		static bool CanComputerDerivative(const LN_NurbsCurve& curve, double paramT);
 
 		/// <summary>
 		/// Calculate curve curvature.
@@ -155,6 +160,11 @@ namespace LNLib
 		/// Split curve at certain parameter.
 		/// </summary>
 		static bool SplitAt(const LN_NurbsCurve& curve, double parameter, LN_NurbsCurve& left, LN_NurbsCurve& right);
+
+		/// <summary>
+		/// Segment curve.
+		/// </summary>
+		static bool Segment(const LN_NurbsCurve& curve, double startParameter, double endParameter, LN_NurbsCurve& segment);
 
 		/// <summary>
 		/// Merge two connected curves to one curve.
@@ -346,22 +356,18 @@ namespace LNLib
 
 		/// <summary>
 		/// Calculate curve arc length.
-		/// 
-		/// Use Simpson integration for low accuracy.
-		/// Use Gauss-Legendre integration for medium accuracy.
-		/// Use Chebyshev integration for high accuracy.
 		/// </summary>
-		static double ApproximateLength(const LN_NurbsCurve& curve, IntegratorType type = IntegratorType::Chebyshev);
+		static double ApproximateLength(const LN_NurbsCurve& curve, IntegratorType type = IntegratorType::GaussLegendre);
 
 		/// <summary>
 		/// Calculate parameter makes first segment length equals to given length.
 		/// </summary>
-		static double GetParamOnCurve(const LN_NurbsCurve& curve, double givenLength, IntegratorType type = IntegratorType::Chebyshev);
+		static double GetParamOnCurve(const LN_NurbsCurve& curve, double givenLength, IntegratorType type = IntegratorType::GaussLegendre);
 
 		/// <summary>
-		/// Calculate parameters makes every segments length equal to given length.
+		/// Calculate parameters makes every segments length equals to given length.
 		/// </summary>
-		static std::vector<double> GetParamsOnCurve(const LN_NurbsCurve& curve, double givenLength, IntegratorType type = IntegratorType::Chebyshev);
+		static std::vector<double> GetParamsOnCurve(const LN_NurbsCurve& curve, double givenLength, IntegratorType type = IntegratorType::GaussLegendre);
 
 		/// <summary>
 		/// Tessellate nurbs curve.

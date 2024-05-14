@@ -24,20 +24,42 @@ namespace LNLib
         double result = ((end - start) / 6.0) * (st + 4 * mt + et);
         return result;
     }
-    double Integrator::Simpson(double start, double end, std::vector<double> odds, std::vector<double> evens, double delta)
+
+	double Integrator::Simpson(BinaryIntegrationFunction& function, void* customData, double uStart, double uEnd, double vStart, double vEnd)
 	{
-		double oddsSum = 0.0;
-		double evensSum = 0.0;
-		for (int i = 0; i < odds.size(); i++)
-		{
-			oddsSum += 4 * odds[i];
-		}
-		for (int i = 0; i < evens.size(); i++)
-		{
-			evensSum += 2 * evens[i];
-		}
-		double result = (delta / 3.0) * (start + oddsSum + evensSum + end);
-		return result;
+        double du = uEnd - uStart;
+        double dv = vEnd - vStart;
+        double hdu = 0.5 * du;
+        double hdv = 0.5 * dv;
+		
+        // Sample 9 points with weights
+        int sampleNumber = 9;
+        int patches = 4;
+        double uvw[27] = {
+            uStart,         vStart,         1,
+            uStart,         vStart + hdv,   4,
+            uStart,         vEnd,           1,
+            uStart + hdu,   vStart,         4,
+            uStart + hdu,   vStart + hdv,   16,
+            uStart + hdu,   vEnd,           4,
+            uEnd,           vStart,         1,
+            uEnd,           vStart + hdv,   4,
+            uEnd,           vEnd,           1,
+            };
+        
+        double sum = 0;
+        for(int i=0; i < sampleNumber; ++i)
+        {
+            double* base = uvw + i*3;
+            double u = base[0];
+            double v = base[1];
+            double w = base[2];
+            double f = function(u, v, customData);
+            sum += w * f;
+        }
+
+        sum *= du * dv / (sampleNumber * patches);
+        return sum;
 	}
 
     const std::vector<double> Integrator::GaussLegendreAbscissae =

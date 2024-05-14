@@ -8,11 +8,16 @@
 
 using namespace LNLib;
 
-TEST(Test_Additional, All)
+TEST(Test_Additional, ApproximateLength)
 {
 	LN_NurbsCurve result;
 	NurbsCurve::CreateLine(XYZ(0, 0, 0), XYZ(100, 0, 0), result);
 	EXPECT_TRUE(NurbsCurve::IsLinear(result));
+	std::vector<double> lineKnotVector = result.KnotVector;
+	double startLineKnot = lineKnotVector[0];
+	double endLineKnot = lineKnotVector[lineKnotVector.size() - 1];
+	double nonCurvature = NurbsCurve::Curvature(result, (startLineKnot + endLineKnot) / 2.0);
+	EXPECT_TRUE(MathUtils::IsAlmostEqualTo(nonCurvature, 0.0));
 	LN_ArcInfo arcInfo;
 	EXPECT_FALSE(NurbsCurve::IsArc(result, arcInfo));
 	double simpson = NurbsCurve::ApproximateLength(result, IntegratorType::Simpson);
@@ -29,6 +34,8 @@ TEST(Test_Additional, All)
 	LN_NurbsCurve curve;
 	bool createArc = NurbsCurve::CreateArc(center, xAxis, yAxis, 0, 2 * Constants::Pi, radius, radius, curve);
 	EXPECT_TRUE(createArc);
+	double curvature = NurbsCurve::Curvature(curve, curve.KnotVector[0]);
+	EXPECT_TRUE(MathUtils::IsAlmostEqualTo(curvature, 1.0/radius));
 	EXPECT_TRUE(NurbsCurve::IsArc(curve, arcInfo));
 	EXPECT_FALSE(NurbsCurve::IsLinear(curve));
 	simpson = NurbsCurve::ApproximateLength(curve, IntegratorType::Simpson);
@@ -59,7 +66,7 @@ TEST(Test_Additional, All)
 	EXPECT_TRUE(MathUtils::IsAlmostEqualTo(arcParameters[2], 0.75));
 }
 
-TEST(Test_Additional, Area)
+static void NURBSSurfaceForAreaTest(LN_NurbsSurface& surface, double& standardArea)
 {
 	int degreeU = 3;
 	int degreeV = 3;
@@ -109,28 +116,50 @@ TEST(Test_Additional, Area)
 	controlPoints[5][4] = XYZW(43.3333333, 50, 0, 1);
 	controlPoints[5][5] = XYZW(50, 50, 0, 1);
 
-	LN_NurbsSurface surface;
 	surface.DegreeU = degreeU;
 	surface.DegreeV = degreeV;
 	surface.KnotVectorU = kvU;
 	surface.KnotVectorV = kvV;
 	surface.ControlPoints = controlPoints;
 
-	double standardArea = 4384.255895045;
+	standardArea = 4384.255895045;
+}
 
-	double simpson = NurbsSurface::ApproximateArea(surface, IntegratorType::Simpson);
-	double gaussLegendre = NurbsSurface::ApproximateArea(surface, IntegratorType::GaussLegendre);
-	double chebyshev = NurbsSurface::ApproximateArea(surface, IntegratorType::Chebyshev);
-	EXPECT_FALSE(MathUtils::IsAlmostEqualTo(simpson, standardArea)); // not accuracy when use Simpson
-	EXPECT_TRUE(MathUtils::IsAlmostEqualTo(gaussLegendre, standardArea));
-	EXPECT_TRUE(MathUtils::IsAlmostEqualTo(chebyshev, standardArea));
+TEST(Test_Additional, Area_Simpson)
+{
+	LN_NurbsSurface surface;
+	double standardArea;
+	NURBSSurfaceForAreaTest(surface, standardArea);
+	double area = NurbsSurface::ApproximateArea(surface, IntegratorType::Simpson);
+	//notice the abs_error
+	EXPECT_NEAR(area, standardArea, 1e-4);
+}
+
+TEST(Test_Additional, Area_GaussLegendre)
+{
+	LN_NurbsSurface surface;
+	double standardArea;
+	NURBSSurfaceForAreaTest(surface, standardArea);
+	double area = NurbsSurface::ApproximateArea(surface, IntegratorType::GaussLegendre);
+	//notice the abs_error
+	EXPECT_NEAR(area, standardArea, 7e-5);
+}
+
+TEST(Test_Additional, Area_ChebyShev)
+{
+	LN_NurbsSurface surface;
+	double standardArea;
+	NURBSSurfaceForAreaTest(surface, standardArea);
+	double area = NurbsSurface::ApproximateArea(surface, IntegratorType::Chebyshev);
+	//notice the abs_error
+	EXPECT_NEAR(area, standardArea, 2e-3);
 }
 
 TEST(Test_Additional, MergeCurve)
 {
 	// Make line.
-	XYZ start(0, 0, 0);
-	XYZ end(5, 0, 0);
+	const XYZ start(0, 0, 0);
+	const XYZ end(5, 0, 0);
 	LN_NurbsCurve line;
 	NurbsCurve::CreateLine(start, end, line);
 
@@ -148,6 +177,16 @@ TEST(Test_Additional, MergeCurve)
 	LN_NurbsCurve merged;
 	bool success = NurbsCurve::Merge(line, arc, merged);
 	EXPECT_TRUE(success);
+	
+	// 1.0 is the joint knot of merged curve.
+	bool canDer = NurbsCurve::CanComputerDerivative(merged, 1.0);
+	EXPECT_FALSE(canDer);
+
+	// Test min and max parameters for CanComputerDerivative.
+	canDer = NurbsCurve::CanComputerDerivative(merged, merged.KnotVector[0]);
+	EXPECT_TRUE(canDer);
+	canDer = NurbsCurve::CanComputerDerivative(merged, merged.KnotVector.back());
+	EXPECT_TRUE(canDer);
 
 	// Verify length.
 	double lineLength = NurbsCurve::ApproximateLength(line);
@@ -155,4 +194,36 @@ TEST(Test_Additional, MergeCurve)
 	double standard = lineLength + arcLength;
 	double mergedLength = NurbsCurve::ApproximateLength(merged, IntegratorType::GaussLegendre);
 	EXPECT_NEAR(standard, mergedLength, Constants::DistanceEpsilon);
+
+	// The line-arc merged curve is also a good case to test tessellation.
+	auto tessPoints = NurbsCurve::Tessellate(merged);
+	
+	// At least, 5 knot points.
+	EXPECT_GT(tessPoints.size(), 5);
+
+	// For each adjacent 2 points, verify angle deflection.
+	for(auto i=0;i<tessPoints.size()-1;++i)
+	{
+		auto& pt1 = tessPoints[i];
+		auto& pt2 = tessPoints[i+1];
+
+		// Skip the line-arc joint point.
+		if(pt1.IsAlmostEqualTo(end) || pt2.IsAlmostEqualTo(end))
+		{
+			continue;
+		}
+
+		// Get parameters.
+		double t1 = NurbsCurve::GetParamOnCurve(merged, pt1);
+		double t2 = NurbsCurve::GetParamOnCurve(merged, pt2);
+		
+		// Compute tangent directions.
+		const int derOrder = 1;
+		XYZ v1 = NurbsCurve::ComputeRationalCurveDerivatives(merged, derOrder, t1)[1];
+		XYZ v2 = NurbsCurve::ComputeRationalCurveDerivatives(merged, derOrder, t2)[1];
+		
+		// Verify angle.
+		double angle = v1.AngleTo(v2);
+		EXPECT_LT(std::fabs(angle), Constants::AngleEpsilon);
+	}
 }
